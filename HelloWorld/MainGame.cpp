@@ -26,19 +26,18 @@ int DISPLAY_SCALE = 1;
 void CannonOptions();
 void AlienFlight();
 void CollisionCheck();
-void EndLevelCheck(); //Checks if alien has reached the ground or all the aliens have been defeated
-void EndGameCheck();
+void LevelWinCheck(); //Checks if alien has reached the ground or all the aliens have been defeated
+void EndGame();
 
 std::string direction;
-float alienVelocity = 100.0f; //15
-float alienDescentVelocity = 15.0f;
-float alienStepTime = 1000.0f;
+int alienVelocity = 15; //15
+int alienDescentVelocity = 15;
+int alienStepTime = 1000;
 bool alienTurnAround;
 
 int gameScore=0;
 int levelNumber = 1;
-bool endLevel = false;
-bool endGame = false;
+std::string gameState = "Game";
 
 //ID Types allow Object location and edits.
 enum GameObjectIDs
@@ -58,9 +57,9 @@ void MainGameEntry(PLAY_IGNORE_COMMAND_LINE)
 	timeCheckpointBullet = clock();
 	//Setting initial characteristics of Aliens.
 	direction = "Right";
-	for (int i = 30; i <= 630; i = i + 100) {
-		for (int j = 70; j <= 450; j = j + 100) {
-			int id = Play::CreateGameObject(FLYING_ALIEN, { i,j }, 20, "alien1");
+	for (int i = 0 ; i <= 6 ; i = i + 1) {
+		for (int j = 0; j <= 4; j = j + 1) {
+			int id = Play::CreateGameObject(FLYING_ALIEN, { i * 100 , (j * 75) }, 20, "alien1");
 		}
 	}
 	Play::CreateGameObject(GROUND, { DISPLAY_WIDTH / 2,DISPLAY_HEIGHT+110 },0,"ground");
@@ -72,26 +71,26 @@ bool MainGameUpdate(float elapsedTime)
 {
 	Play::ClearDrawingBuffer(Play::cGrey);
 
-	Play::DrawFontText("64px", "LEVEL: " + std::to_string(levelNumber), { 50, 30 }, Play::CENTRE);
-	Play::DrawFontText("64px", "GAMESCORE: " + std::to_string(gameScore), {DISPLAY_WIDTH - 150, 30 }, Play::CENTRE);
 	//moves cannon left and right or stop
-	if (!endGame) {
-		if (!endLevel) {
+	if (gameState == "Game") {
+			//Writes out game stuff :)
+			Play::DrawFontText("64px", "LEVEL: " + std::to_string(levelNumber), { 50, 30 }, Play::CENTRE);
+			Play::DrawFontText("64px", "GAMESCORE: " + std::to_string(gameScore), { DISPLAY_WIDTH - 150, 30 }, Play::CENTRE);
 			CannonOptions();
 			AlienFlight();
 			CollisionCheck();
-		}
+			LevelWinCheck();
 		
 	}
-	if (endGame) {
-		EndGameCheck();
+	else if (gameState == "Dead") {
+		EndGame();
 		Play::DrawFontText("64px", "GAMEOVER", { DISPLAY_WIDTH/2, DISPLAY_HEIGHT/2 }, Play::CENTRE);
 	}
 	GameObject& Ground = Play::GetGameObjectByType(GROUND);
 	Play::DrawObject(Ground);
 
 	Play::PresentDrawingBuffer();
-	return (Play::KeyDown(VK_ESCAPE) || stop);
+	return (Play::KeyDown(VK_ESCAPE));
 }
 
 // Gets called once when the player quits the game
@@ -180,9 +179,8 @@ void AlienFlight() {
 	}
 
 	//Alien horizontal movement
-	if (timePassed > alienStepTime / 5) {
+	if (timePassed > alienStepTime / 5 && !alienTurnAround) {
 		timeCheckpoint = clock();
-		alienTurnAround = false;
 		for (int alienInt : allAliens) {
 			GameObject& alien = Play::GetGameObject(alienInt);
 			if (!alienTurnAround) {
@@ -197,6 +195,19 @@ void AlienFlight() {
 		}
 
 	}
+
+	for (int alienInt : allAliens) {
+		GameObject& alien = Play::GetGameObject(alienInt);
+		if (alienTurnAround) {
+			alien.pos = { alien.pos.x,alien.pos.y + alienDescentVelocity };
+		}
+		if (alien.pos.y > DISPLAY_HEIGHT - 50) {
+			gameState = "Dead";
+			endGameTime = clock();
+		}
+		Play::UpdateGameObject(alien);
+		Play::DrawObject(alien);
+	}
 	//Turns aliens around
 	if (alienTurnAround) {
 		if (direction == "Right") {
@@ -205,20 +216,8 @@ void AlienFlight() {
 		else if (direction == "Left") {
 			direction = "Right";
 		}
+		alienTurnAround = false;
 	}
-	for (int alienInt : allAliens) {
-		GameObject& alien = Play::GetGameObject(alienInt);
-		if (alienTurnAround) {
-			alien.pos = { alien.pos.x,alien.pos.y + alienDescentVelocity };
-		}
-		if (alien.pos.y > DISPLAY_HEIGHT-50) {
-			endGame = true;
-			endGameTime = clock();
-		}
-		Play::UpdateGameObject(alien);
-		Play::DrawObject(alien);
-	}
-	alienTurnAround = false;
 
 	
 }
@@ -253,38 +252,35 @@ void CollisionCheck() {
 	}
 }
 
-void EndLevelCheck() {
-	if (!endLevel) {
-		int alienChecker=0;
-		std::vector<int> allAliens = Play::CollectGameObjectIDsByType(FLYING_ALIEN);
-		for (int alienInt : allAliens) {
-			alienChecker++;
-		}
-		if (alienChecker == 0){
-			Play::DestroyGameObjectsByType(PLAYER_BULLETS);
-			GameObject& cannon = Play::GetGameObjectByType(CANNON);
-			cannon.pos = { DISPLAY_WIDTH / 2, DISPLAY_HEIGHT - 50 };
-			timeCheckpoint = clock();
-			timeCheckpointBullet = clock();
-			//Setting initial characteristics of Aliens.
-			direction = "Right";
-			for (int i = 30; i <= 630; i = i + 100) {
-				for (int j = 30; j <= 410; j = j + 100) {
-					int id = Play::CreateGameObject(FLYING_ALIEN, { i,j }, 10, "alien1");
-				}
+//Checks to see if all aliens have been defeated
+void LevelWinCheck() {
+
+	int alienChecker=0;
+	std::vector<int> allAliens = Play::CollectGameObjectIDsByType(FLYING_ALIEN);
+	for (int alienInt : allAliens) {
+		alienChecker++;
+	}
+	if (alienChecker == 0) {
+		Play::DestroyGameObjectsByType(PLAYER_BULLETS);
+		GameObject& cannon = Play::GetGameObjectByType(CANNON);
+		cannon.pos = { DISPLAY_WIDTH / 2, DISPLAY_HEIGHT - 50 };
+		timeCheckpoint = clock();
+		timeCheckpointBullet = clock();
+		//Setting initial characteristics of Aliens.
+		direction = "Right";
+		for (int i = 30; i <= 630; i = i + 100) {
+			for (int j = 30; j <= 410; j = j + 100) {
+				int id = Play::CreateGameObject(FLYING_ALIEN, { i,j }, 10, "alien1");
 			}
-			levelNumber++;
-			Play::CentreAllSpriteOrigins();
 		}
+		levelNumber++;
+		Play::CentreAllSpriteOrigins();
 	}
 
 }
 
 
-void EndGameCheck() {
+void EndGame() {
+	std::vector<int> allAliens = Play::CollectGameObjectIDsByType(FLYING_ALIEN);
 	
-	endGameTimePassed = clock() - endGameTime;
-	if (endGameTimePassed >300) {
-		stop = true;
-	}
 }
