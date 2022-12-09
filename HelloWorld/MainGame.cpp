@@ -281,6 +281,8 @@ void LevelWinCheck() {
 
 
 void EndGame() {
-	std::vector<int> allAliens = Play::CollectGameObjectIDsByType(FLYING_ALIEN);
+	Play::DestroyGameObjectsByType(PLAYER_BULLETS);
+	Play::DestroyGameObjectsByType(FLYING_ALIEN);
+	Play::DestroyGameObjectsByType(CANNON);
 	
 }
